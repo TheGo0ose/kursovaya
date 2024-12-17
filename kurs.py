@@ -270,99 +270,102 @@ async def get_subjects_count(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 
+
 def generate_schedule(data):
-    days = data['days']
-    max_subjects = data['max_subjects']
-    subjects = data['subjects']
-    start_time = data['start_time']
-    end_time = data['end_time']
-    duration = data['duration']
-    break_duration = data['break_duration']
-    window_probability = 0.3
+        days = data['days']
+        max_subjects = data['max_subjects']
+        subjects = data['subjects']
+        start_time = data['start_time']
+        end_time = data['end_time']
+        duration = data['duration']
+        break_duration = data['break_duration']
+        window_probability = 0.3
 
+        # Создание временных интервалов
+        time_slots = []
+        start_hour, start_minute = map(int, start_time.split(':'))
+        end_hour, end_minute = map(int, end_time.split(':'))
+        total_minutes = end_hour * 60 + end_minute - (start_hour * 60 + start_minute)
 
-    time_slots = []
-    start_hour, start_minute = map(int, start_time.split(':'))
-    end_hour, end_minute = map(int, end_time.split(':'))
-    total_minutes = end_hour * 60 + end_minute - (start_hour * 60 + start_minute)
+        while total_minutes >= duration + break_duration:
+            start = f"{start_hour:02}:{start_minute:02}"
+            start_minute += duration
+            if start_minute >= 60:
+                start_minute -= 60
+                start_hour += 1
+            end = f"{start_hour:02}:{start_minute:02}"
+            time_slots.append((start, end))
 
-    while total_minutes >= duration + break_duration:
-        start = f"{start_hour:02}:{start_minute:02}"
-        start_minute += duration
-        if start_minute >= 60:
-            start_minute -= 60
-            start_hour += 1
-        end = f"{start_hour:02}:{start_minute:02}"
-        time_slots.append((start, end))
+            # Добавление перерыва
+            start_minute += break_duration
+            if start_minute >= 60:
+                start_minute -= 60
+                start_hour += 1
+            total_minutes -= (duration + break_duration)
 
-        # Добавление перерыва
-        start_minute += break_duration
-        if start_minute >= 60:
-            start_minute -= 60
-            start_hour += 1
-        total_minutes -= (duration + break_duration)
+        # Генерация расписания по дням
+        schedule = {f"День {i + 1}": [] for i in range(days)}
 
-    schedule = {f"День {i + 1}": [] for i in range(days)}
+        for day in schedule:
+            available_slots = time_slots[:]
+            daily_subjects = min(len(available_slots), max_subjects)
 
+            for i in range(daily_subjects):
+                # Выбор временного слота
+                if not available_slots:
+                    break
+                slot_index = random.randint(0, len(available_slots) - 1)
+                time_slot = available_slots.pop(slot_index)
 
-    for day in schedule:
-        available_slots = time_slots[:]
-        daily_subjects = min(len(available_slots), max_subjects)
+                # Выбор предмета
+                if subjects:
+                    subject = random.choice(list(subjects.keys()))
+                    schedule[day].append((subject, time_slot[0], time_slot[1]))
 
-        for i in range(daily_subjects):
-            # Шаг 1. Выбираем случайный временной интервал
-            if not available_slots:
-                break
-            slot_index = random.randint(0, len(available_slots) - 1)
-            time_slot = available_slots.pop(slot_index)
+                    # Уменьшаем количество занятий
+                    subjects[subject] -= 1
+                    if subjects[subject] == 0:
+                        del subjects[subject]
 
-            # Шаг 2. Выбираем случайный предмет из списка
-            if subjects:
-                subject = random.choice(list(subjects.keys()))
-                schedule[day].append((subject, f"{time_slot[0]}-{time_slot[1]}"))
+                # Добавление "окна" с вероятностью
+                if i < daily_subjects - 1 and random.random() < window_probability and available_slots:
+                    window_slot_index = random.randint(0, len(available_slots) - 1)
+                    window_time_slot = available_slots.pop(window_slot_index)
+                    schedule[day].append(("Окно", window_time_slot[0], window_time_slot[1]))
 
-                # Уменьшаем количество занятий по предмету
-                subjects[subject] -= 1
-                if subjects[subject] == 0:
-                    del subjects[subject]
+            # Сортировка предметов по времени начала
+            schedule[day].sort(key=lambda x: x[1])
 
-            # Шаг 3. С вероятностью window_probability добавляем окно
-            if i < daily_subjects - 1 and random.random() < window_probability and available_slots:
-                window_slot_index = random.randint(0, len(available_slots) - 1)
-                window_time_slot = available_slots.pop(window_slot_index)
-                schedule[day].append(("Окно", f"{window_time_slot[0]}-{window_time_slot[1]}"))
-
-    return schedule
+        return schedule
 
 
 def create_schedule_image(schedule, file_path="schedule.png"):
-    days = len(schedule)
-    max_subjects = max(len(subjects) for subjects in schedule.values())
+        days = len(schedule)
+        max_subjects = max(len(subjects) for subjects in schedule.values())
 
-    width = 800
-    height = 100 + days * (50 + max_subjects * 40)
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
+        width = 800
+        height = 100 + days * (50 + max_subjects * 40)
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
 
-    font_path = "arial.ttf"
-    font_size = 18
-    font = ImageFont.truetype(font_path, font_size)
+        font_path = "arial.ttf"
+        font_size = 18
+        font = ImageFont.truetype(font_path, font_size)
 
-    y = 20
-    for day, subjects in schedule.items():
-        draw.text((20, y), day, fill="black", font=font)
-        y += 40
-        for subject, time in subjects:
-            if subject == "Окно":
-                draw.text((40, y), f"{time} | 🕒 Окно", fill="red", font=font)
-            else:
-                draw.text((40, y), f"{time} | {subject}", fill="black", font=font)
+        y = 20
+        for day, subjects in schedule.items():
+            draw.text((20, y), day, fill="black", font=font)
             y += 40
-        y += 20
+            for subject, start_time, end_time in subjects:
+                if subject == "Окно":
+                    draw.text((40, y), f"{start_time}-{end_time} | 🕒 Окно", fill="red", font=font)
+                else:
+                    draw.text((40, y), f"{start_time}-{end_time} | {subject}", fill="black", font=font)
+                y += 40
+            y += 20
 
-    image.save(file_path)
-    return file_path
-
+        image.save(file_path)
+        return file_path
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -378,7 +381,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     try:
-        app = Application.builder().token("Token").build()
+        app = Application.builder().token("7889665164:AAGB2w12C2oBu2lbDsOVLgIrZyQ-QyaK0E0").build()
 
 
         app.add_handler(CommandHandler("start", start))
