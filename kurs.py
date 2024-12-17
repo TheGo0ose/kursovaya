@@ -381,7 +381,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     try:
-        app = Application.builder().token("7889665164:AAGB2w12C2oBu2lbDsOVLgIrZyQ-QyaK0E0").build()
+        app = Application.builder().token("token").build()
 
 
         app.add_handler(CommandHandler("start", start))
