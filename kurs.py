@@ -279,6 +279,7 @@ def generate_schedule(data):
         end_time = data['end_time']
         duration = data['duration']
         break_duration = data['break_duration']
+        min_subjects = 3
         window_probability = 0.3
 
         # Создание временных интервалов
@@ -308,7 +309,7 @@ def generate_schedule(data):
 
         for day in schedule:
             available_slots = time_slots[:]
-            daily_subjects = min(len(available_slots), max_subjects)
+            daily_subjects = max(min_subjects, min(len(available_slots), len(subjects)))
 
             for i in range(daily_subjects):
                 # Выбор временного слота
@@ -340,32 +341,64 @@ def generate_schedule(data):
 
 
 def create_schedule_image(schedule, file_path="schedule.png"):
-        days = len(schedule)
-        max_subjects = max(len(subjects) for subjects in schedule.values())
+    try:
+        # Настройки изображения
+        day_header_height = 40  # Высота заголовка дня
+        subject_height = 40     # Высота строки для предмета
+        padding = 20            # Отступы вокруг
+        line_spacing = 10       # Промежуток между днями
 
+        # Вычисляем высоту изображения на основе количества предметов
+        total_height = padding + sum(
+            day_header_height + len(subjects) * subject_height + line_spacing
+            for subjects in schedule.values()
+        )
+
+        # Ширина изображения фиксирована
         width = 800
-        height = 100 + days * (50 + max_subjects * 40)
-        image = Image.new("RGB", (width, height), "white")
+        image = Image.new("RGB", (width, total_height), "white")
         draw = ImageDraw.Draw(image)
 
-        font_path = "arial.ttf"
+        # Настройка шрифта
+        font_path = "arial.ttf"  # Убедитесь, что шрифт доступен в системе
         font_size = 18
         font = ImageFont.truetype(font_path, font_size)
 
-        y = 20
+        y = padding  # Начальная координата по вертикали
+
+        # Отрисовка расписания
         for day, subjects in schedule.items():
-            draw.text((20, y), day, fill="black", font=font)
-            y += 40
+            # Заголовок дня
+            draw.text((padding, y), day, fill="black", font=font)
+            y += day_header_height
+
+            # Отрисовка предметов
             for subject, start_time, end_time in subjects:
                 if subject == "Окно":
-                    draw.text((40, y), f"{start_time}-{end_time} | 🕒 Окно", fill="red", font=font)
+                    draw.text(
+                        (padding + 20, y),
+                        f"{start_time}-{end_time} | 🕒 Окно",
+                        fill="red",
+                        font=font
+                    )
                 else:
-                    draw.text((40, y), f"{start_time}-{end_time} | {subject}", fill="black", font=font)
-                y += 40
-            y += 20
+                    draw.text(
+                        (padding + 20, y),
+                        f"{start_time}-{end_time} | {subject}",
+                        fill="black",
+                        font=font
+                    )
+                y += subject_height  # Переход на следующую строку
 
+            y += line_spacing  # Добавляем промежуток между днями
+
+        # Сохранение изображения
         image.save(file_path)
+        print("Image successfully saved:", file_path)
         return file_path
+    except Exception as e:
+        print("Error creating image:", e)
+        return None
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
